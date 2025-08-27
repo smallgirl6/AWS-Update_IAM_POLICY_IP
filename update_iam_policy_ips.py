@@ -8,9 +8,9 @@ NEW_IPS = ["11.11.11.11/28", "13.13.13.13/28"]
 
 # 更新対象のポリシー ARN のリスト
 POLICY_ARNS = [
-    "arn:aws:iam::532550155506:policy/test1",
-    "arn:aws:iam::532550155506:policy/test3",
-    "arn:aws:iam::532550155506:policy/test4",
+    "arn:aws:iam::AccountID:policy/test1",
+    "arn:aws:iam::AccountID:policy/test3",
+    "arn:aws:iam::AccountID:policy/test4",
 ]
 
 def ensure_list(value):
