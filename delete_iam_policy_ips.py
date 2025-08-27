@@ -3,8 +3,8 @@ import json
 
 iam = boto3.client('iam')
 
-# 追加したい IP のリスト（複数可）
-NEW_IPS = ["11.11.11.11/28", "13.13.13.13/28"]
+# 削除したい IP のリスト（複数可）
+DELETE_IPS = ["11.11.11.11/28", "13.13.13.13/28"]
 
 # 更新対象のポリシー ARN のリスト
 POLICY_ARNS = [
@@ -16,7 +16,7 @@ POLICY_ARNS = [
 def ensure_list(value):
     """値が文字列/リスト/None のいずれであっても、必ずリストに正規化して返す。
     - IAM ポリシーの aws:SourceIp は「単一文字列」または「文字列配列」の両方があり得る。
-    - 後続処理（集合演算による重複排除等）を安定させるため、リストに統一する。
+    - 後続処理（集合演算による削除等）を安定させるため、リストに統一する。
     """
     if value is None:
         return []
@@ -35,7 +35,6 @@ def ensure_space_for_new_version(policy_arn):
     # デフォルトではないバージョンのみ抽出
     non_default = [v for v in versions if not v['IsDefaultVersion']]
     if not non_default:
-        # デフォルトが無いなら、削除できない
         raise RuntimeError(f"No non-default versions available to delete for {policy_arn}")
 
     # 作成日時が古い順に並べ、最古のものを 1 件削除
@@ -92,20 +91,19 @@ with open("updated_policies.txt", "w") as f:
                 # aws:SourceIp を必ずリスト化（単一文字列のケースに備える）
                 current_ips = ensure_list(source_ip)
 
-                # 既存 IP と追加予定 IP を集合の和（|）で結合し、重複を自動排除。
-                # さらに sorted() で順序を安定化（順序の揺れによる差分誤検知を防ぐ）。
-                merged = sorted(set(current_ips) | set(NEW_IPS))
+                # 現在の IP から削除対象 IP を差集合で引く。
+                # set(current) - set(DELETE_IPS) によって指定した IP を取り除く。
+                merged = sorted(set(current_ips) - set(DELETE_IPS))
 
-                # 実際に差異があれば書き戻して変更フラグを立てる
+                # 差異があれば書き戻して変更フラグを立てる
                 if merged != current_ips:
-                    # 複数値を扱うため、常にリストで保持（単一→複数になるため自然にリスト化される）
                     ip_cond['aws:SourceIp'] = merged
                     changed = True
 
             # 変更後の標準化 JSON を作成し、before/after を比較
             after = policy_doc_to_sorted_json(policy_doc)
 
-            # 差分が無ければバージョンを増やさない（上限 5 回避＆無駄な変更を抑止）
+            # 差分が無ければバージョンを増やさない
             if not changed or before == after:
                 msg = f"[NO CHANGE] {policy_arn} (default {default_version_id})"
                 print(msg)
